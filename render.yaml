@@ -1,0 +1,41 @@
+# Render Blueprint for ReFind (Next.js + PostgreSQL).
+# Dashboard: New + -> Blueprint -> select your Git repository.
+#
+# DATA PERSISTENCE: ReFind keeps reports, accounts AND uploaded images in PostgreSQL.
+# Render's *free* Postgres expires 30 days after creation (then is deleted), so the
+# database below uses a paid plan. Change `plan` to `free` only for a short trial.
+# The web service runs on `free` (it sleeps after 15 min idle; first request then takes ~1 min).
+# Change it to `starter` for an always-on site.
+
+databases:
+  - name: refind-db
+    databaseName: refind
+    user: refind
+    region: oregon
+    plan: basic-256mb
+
+services:
+  - type: web
+    name: refind
+    runtime: node
+    region: oregon # must match the database region (private network URL)
+    plan: free
+    autoDeploy: true
+    # --include=dev: Next.js, Tailwind and TypeScript are devDependencies needed to build.
+    buildCommand: npm ci --include=dev && npm run build
+    # Applies DB migrations (safe to repeat), optionally seeds demo data once, then starts Next.js.
+    startCommand: node scripts/render-init.mjs && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: refind-db
+          property: connectionString
+      - key: AUTH_SECRET
+        generateValue: true
+      # "true" = load the demo campus data ONCE, only into an empty database.
+      # Set to "false" for a clean launch with no demo accounts/reports.
+      - key: SEED_DEMO_DATA
+        value: "true"
